@@ -2,18 +2,20 @@
 import { createClient } from '@supabase/supabase-js';
 import { Order, OrderStatus, Sauce, Settings } from '../types';
 
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
+// Acceso seguro a variables de entorno inyectadas
+const supabaseUrl = typeof process !== 'undefined' ? process.env.SUPABASE_URL : '';
+const supabaseKey = typeof process !== 'undefined' ? process.env.SUPABASE_ANON_KEY : '';
 
 export const isCloudConnected = Boolean(
   supabaseUrl && 
-  supabaseUrl.startsWith('https://') && 
+  supabaseUrl.length > 10 &&
+  supabaseUrl.includes('supabase.co') &&
   supabaseKey && 
   supabaseKey.length > 20
 );
 
 const supabase = isCloudConnected 
-  ? createClient(supabaseUrl, supabaseKey) 
+  ? createClient(supabaseUrl as string, supabaseKey as string) 
   : null;
 
 const INITIAL_SAUCES: Sauce[] = [
@@ -62,7 +64,7 @@ export const db = {
         created_at: o.created_at
       }));
     } catch (err) {
-      console.error(err);
+      console.error("Error al cargar pedidos de Supabase:", err);
       return getLocalData<Order[]>('pm_orders', []);
     }
   },
