@@ -1,0 +1,7 @@
+{
+  "name": "Metele Pata - Gestión de Pedidos de Patas Flambeadas",
+  "description": "Una aplicación completa para la personalización y gestión de pedidos de patas flambeadas, con panel de administración, selección de salsas y carga de comprobantes de pago.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
