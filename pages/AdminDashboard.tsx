@@ -70,7 +70,7 @@ const AdminDashboard: React.FC = () => {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('Copiado al portapapeles');
+    alert(`Copiado: ${text}`);
   };
 
   const shareWhatsApp = () => {
@@ -102,7 +102,7 @@ const AdminDashboard: React.FC = () => {
             )}
           </div>
         </div>
-        <div className="flex bg-gray-200 rounded-xl p-1 border-2 border-gray-300 w-full md:w-auto overflow-x-auto">
+        <div className="flex bg-gray-200 rounded-xl p-1 border-2 border-gray-300 w-full md:w-auto overflow-x-auto shadow-inner">
           {[
             { id: 'orders', label: 'PEDIDOS' },
             { id: 'sauces', label: 'SALSAS' },
@@ -113,7 +113,7 @@ const AdminDashboard: React.FC = () => {
             <button 
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`whitespace-nowrap px-4 py-2 rounded-lg text-xs font-black transition ${activeTab === tab.id ? 'bg-orange-700 text-white shadow-md' : 'text-gray-700 hover:bg-gray-300'}`}
+              className={`whitespace-nowrap px-4 py-2 rounded-lg text-xs font-black transition ${activeTab === tab.id ? 'bg-orange-700 text-white shadow-md scale-105' : 'text-gray-700 hover:bg-gray-300'}`}
             >
               {tab.label}
             </button>
@@ -215,7 +215,6 @@ const AdminDashboard: React.FC = () => {
                 <p className="font-black text-blue-900 text-sm mb-2 uppercase italic">Tip de Ventas 💡</p>
                 <p className="text-xs text-blue-800 font-medium leading-relaxed">
                   Pega este link en tu **biografía de Instagram** y ponlo en tu **estado de WhatsApp** cada jueves o viernes. 
-                  ¡Los clientes aman la comodidad de pedir sin tener que esperar una respuesta!
                 </p>
               </div>
             </div>
@@ -229,107 +228,106 @@ const AdminDashboard: React.FC = () => {
                   className="w-48 h-48"
                 />
               </div>
-              <p className="text-xs text-gray-500 font-bold max-w-[200px]">Imprime este QR y pégalo en tu local para que escaneen y pidan al instante.</p>
-              <button onClick={() => window.print()} className="text-[10px] font-black text-orange-700 underline uppercase tracking-widest">Imprimir Panel</button>
+              <p className="text-xs text-gray-500 font-bold max-w-[200px]">Imprime este QR y pégalo en tu local.</p>
             </div>
           </div>
         </div>
       )}
 
       {activeTab === 'setup' && (
-        <div className="bg-white rounded-3xl p-8 border border-gray-200 space-y-12">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-3xl">🚀</div>
-            <div>
-              <h2 className="text-2xl font-black italic">Guía de Despliegue Profesional</h2>
-              <p className="text-gray-500 text-sm font-medium">Sigue estos pasos para que tu negocio esté online hoy mismo.</p>
+        <div className="bg-white rounded-3xl p-8 border border-gray-200 space-y-12 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-blue-200">🚀</div>
+              <div>
+                <h2 className="text-2xl font-black italic">Configuración de Vercel</h2>
+                <p className="text-gray-500 text-sm font-medium">Sigue estos 3 pasos para poner tu negocio en órbita.</p>
+              </div>
+            </div>
+            <div className="bg-orange-50 px-4 py-2 rounded-xl border border-orange-200">
+               <p className="text-[10px] font-black text-orange-700 uppercase">Estado Actual:</p>
+               <p className="text-xs font-bold text-orange-900 flex items-center gap-2">
+                 <span className={`w-2 h-2 rounded-full ${isCloudConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></span>
+                 {isCloudConnected ? 'Producción Lista' : 'Configuración Pendiente'}
+               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Opción RECOMENDADA: Vercel/Netlify */}
-            <div className="bg-white p-8 rounded-3xl border-4 border-orange-600 space-y-6 relative shadow-2xl">
-              <div className="absolute -top-5 left-8 bg-orange-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">
-                ★ RECOMENDADO POR EL CHEF IA
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center text-2xl">☁️</div>
-                <h3 className="font-black text-xl italic">Vercel / Netlify (Nube)</h3>
-              </div>
-              <p className="text-xs text-gray-600 font-bold leading-relaxed">Es la opción más moderna, estable y gratuita para esta aplicación.</p>
-              <ul className="space-y-4">
-                <li className="flex gap-4">
-                  <span className="w-6 h-6 bg-orange-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">1</span>
-                  <p className="text-xs font-bold text-gray-700">Crea una cuenta gratis en <a href="https://vercel.com" target="_blank" className="text-orange-600 underline">Vercel.com</a>.</p>
-                </li>
-                <li className="flex gap-4">
-                  <span className="w-6 h-6 bg-orange-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">2</span>
-                  <p className="text-xs font-bold text-gray-700">Sube tus archivos o conecta tu cuenta de GitHub.</p>
-                </li>
-                <li className="flex gap-4">
-                  <span className="w-6 h-6 bg-orange-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">3</span>
-                  <div className="text-xs font-black text-orange-900 bg-orange-50 p-3 rounded-xl border border-orange-200">
-                    IMPORTANTE: En el panel de Vercel, ve a "Environment Variables" y agrega tu <code className="bg-orange-200 px-1 rounded">API_KEY</code> para que la IA funcione.
-                  </div>
-                </li>
-              </ul>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="bg-gray-50 p-6 rounded-3xl border-2 border-gray-100 space-y-4">
+              <span className="bg-gray-900 text-white w-8 h-8 rounded-full flex items-center justify-center font-black">1</span>
+              <h3 className="font-black italic">GitHub</h3>
+              <p className="text-xs text-gray-600 font-medium leading-relaxed">Sube tu carpeta a un repositorio. Es gratis y sirve de respaldo.</p>
             </div>
 
-            {/* Opción Tradicional: Hostinger */}
-            <div className="bg-gray-50 p-8 rounded-3xl border-2 border-gray-200 space-y-6 opacity-80 hover:opacity-100 transition">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-xl">🏠</div>
-                <h3 className="font-black text-lg italic text-gray-600">Hostinger (Tradicional)</h3>
+            <div className="bg-gray-50 p-6 rounded-3xl border-2 border-gray-100 space-y-4">
+              <span className="bg-gray-900 text-white w-8 h-8 rounded-full flex items-center justify-center font-black">2</span>
+              <h3 className="font-black italic">Importar</h3>
+              <p className="text-xs text-gray-600 font-medium leading-relaxed">En Vercel, elige el repositorio y dale a "Deploy".</p>
+            </div>
+
+            <div className="bg-blue-600 p-6 rounded-3xl border-2 border-blue-500 space-y-4 text-white shadow-xl shadow-blue-200">
+              <span className="bg-white text-blue-600 w-8 h-8 rounded-full flex items-center justify-center font-black">3</span>
+              <h3 className="font-black italic">Variables</h3>
+              <p className="text-xs font-medium opacity-90 leading-relaxed">Copia estos nombres y busca sus valores abajo.</p>
+              <div className="space-y-2">
+                {[
+                  { name: 'API_KEY', label: 'IA Gemini' },
+                  { name: 'SUPABASE_URL', label: 'Base de Datos' },
+                  { name: 'SUPABASE_ANON_KEY', label: 'Clave DB' }
+                ].map((v) => (
+                  <button 
+                    key={v.name}
+                    onClick={() => copyToClipboard(v.name)}
+                    className="w-full flex justify-between items-center bg-blue-700/50 hover:bg-blue-800 p-2 rounded-lg border border-blue-400/30 transition text-[10px] font-black group"
+                  >
+                    <span>{v.name}</span>
+                    <span className="bg-blue-400/20 px-2 py-0.5 rounded text-[8px] group-hover:bg-white group-hover:text-blue-600">COPIAR</span>
+                  </button>
+                ))}
               </div>
-              <p className="text-xs text-gray-500 font-medium leading-relaxed">Úsalo solo si ya tienes una suscripción activa y prefieres no crear cuentas nuevas.</p>
-              <ul className="space-y-4">
-                <li className="flex gap-4">
-                  <span className="w-6 h-6 bg-gray-400 text-white rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">1</span>
-                  <p className="text-xs font-bold text-gray-500">Sube el contenido a la carpeta <code className="bg-gray-200 px-1 rounded">public_html</code>.</p>
-                </li>
-                <li className="flex gap-4">
-                  <span className="w-6 h-6 bg-gray-400 text-white rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0">2</span>
-                  <p className="text-xs font-bold text-gray-500 italic">Deberás configurar el archivo <code className="bg-gray-200 px-1 rounded">.htaccess</code> para las rutas de React.</p>
-                </li>
-              </ul>
             </div>
           </div>
 
-          {/* Estado de Supabase */}
-          <div className={`p-8 rounded-3xl border-2 flex flex-col md:flex-row items-center gap-6 ${isCloudConnected ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-            <div className={`w-16 h-16 rounded-3xl flex items-center justify-center text-3xl shadow-lg ${isCloudConnected ? 'bg-green-200 text-green-700' : 'bg-red-200 text-red-700'}`}>
-              {isCloudConnected ? '✓' : '!'}
-            </div>
-            <div className="flex-grow text-center md:text-left">
-              <p className="font-black text-[10px] uppercase mb-1 tracking-widest">Base de Datos (Supabase):</p>
-              <p className={`text-2xl font-black ${isCloudConnected ? 'text-green-700' : 'text-red-700'} italic`}>
-                {isCloudConnected ? 'Sincronización Cloud Activa' : 'Base de Datos Desconectada'}
-              </p>
-              <p className="text-xs font-bold text-gray-500 mt-2">
-                {isCloudConnected 
-                  ? '¡Excelente! Todos los pedidos y salsas están seguros en la nube de Supabase.' 
-                  : 'Sin esto, tus datos se perderán al borrar el historial del navegador. Configura las claves en services/mockDb.ts.'}
-              </p>
+          {/* GUIA DE VALORES */}
+          <div className="bg-gray-50 p-8 rounded-3xl border border-gray-200 space-y-6">
+            <h3 className="text-xl font-black italic flex items-center gap-2">
+              <span className="bg-orange-100 p-2 rounded-lg text-lg">❓</span> ¿Dónde encuentro mis valores?
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white p-6 rounded-2xl border border-gray-200 space-y-4 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm">G</div>
+                  <h4 className="font-black text-sm uppercase text-gray-400 tracking-tighter">Para API_KEY (IA Gemini)</h4>
+                </div>
+                <p className="text-[11px] font-bold text-gray-600 leading-relaxed">
+                  Entra a <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-600 underline">Google AI Studio</a>. Haz clic en el botón <b>"Create API Key"</b>. Copia ese código largo (empieza con "AIza...").
+                </p>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl border border-gray-200 space-y-4 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-green-100 text-green-600 rounded-lg flex items-center justify-center text-sm">S</div>
+                  <h4 className="font-black text-sm uppercase text-gray-400 tracking-tighter">Para SUPABASE (DB)</h4>
+                </div>
+                <p className="text-[11px] font-bold text-gray-600 leading-relaxed">
+                  En tu proyecto de Supabase, ve a: <br/>
+                  <b>Settings (Icono Rueda) → API</b>. <br/>
+                  Ahí verás <b>Project URL</b> (para el URL) y <b>anon public</b> (para el Anon Key).
+                </p>
+              </div>
             </div>
           </div>
-          
-          <div className="bg-gray-900 p-8 rounded-3xl text-green-400 font-mono text-[10px] overflow-x-auto shadow-2xl relative">
-              <button onClick={() => copyToClipboard(`create table orders (
-  id text primary key,
-  customer_name text,
-  phone text,
-  address text,
-  people_count int,
-  total_price float,
-  order_date date,
-  order_time text,
-  status text,
-  payment_proof_url text,
-  sauces jsonb,
-  created_at timestamp with time zone default now()
-);`)} className="absolute top-4 right-4 bg-gray-800 text-gray-400 hover:text-white px-3 py-1 rounded-lg transition">COPIAR SQL</button>
-              <p className="text-gray-500 mb-4 font-sans text-xs uppercase font-black tracking-widest">// Script SQL para Supabase</p>
-{`create table orders (
+
+          <div className="bg-white p-8 rounded-3xl border-2 border-dashed border-gray-200">
+            <h3 className="text-xl font-black mb-6 italic flex items-center gap-2">
+              <span className="text-green-500">🛡️</span> Scripts de Seguridad (SQL)
+            </h3>
+            <p className="text-xs text-gray-500 font-bold mb-4 uppercase tracking-widest">Copia y pega esto en el SQL Editor de Supabase para crear tus tablas:</p>
+            <div className="bg-gray-900 p-6 rounded-2xl text-green-400 font-mono text-[10px] overflow-x-auto shadow-inner relative group">
+                <button 
+                  onClick={() => copyToClipboard(`create table orders (
   id text primary key,
   customer_name text,
   phone text,
@@ -355,7 +353,42 @@ create table settings (
   price_per_person int,
   payment_alias text,
   payment_cbu text
+);`)} 
+                  className="absolute top-4 right-4 bg-white/10 text-white/50 hover:text-white px-3 py-1 rounded-lg text-[9px] font-black transition opacity-0 group-hover:opacity-100"
+                >
+                  COPIAR TODO EL SQL
+                </button>
+{`-- 1. Tabla de Pedidos
+create table orders (
+  id text primary key,
+  customer_name text,
+  phone text,
+  address text,
+  people_count int,
+  total_price float,
+  order_date date,
+  order_time text,
+  status text,
+  payment_proof_url text,
+  sauces jsonb,
+  created_at timestamp with time zone default now()
+);
+
+-- 2. Tabla de Salsas
+create table sauces (
+  id uuid default gen_random_uuid() primary key,
+  name text,
+  active boolean default true
+);
+
+-- 3. Tabla de Ajustes
+create table settings (
+  id int primary key default 1,
+  price_per_person int,
+  payment_alias text,
+  payment_cbu text
 );`}
+            </div>
           </div>
         </div>
       )}
