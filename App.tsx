@@ -13,7 +13,7 @@ const Navbar: React.FC = () => {
 
   const handleShare = async () => {
     const shareData = {
-      title: 'PataMaster - Pedidos Online',
+      title: 'Metele Pata - Pedidos Online',
       text: '¡Haz tu pedido de Patas Flambeadas online!',
       url: window.location.origin + window.location.pathname
     };
@@ -35,7 +35,7 @@ const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           <Link to="/" className="flex items-center gap-2">
-            <span className="text-2xl font-extrabold text-orange-700">PataMaster</span>
+            <span className="text-2xl font-extrabold text-orange-700">Metele Pata</span>
           </Link>
           <div className="flex items-center gap-4">
             <button 
@@ -78,7 +78,7 @@ const App: React.FC = () => {
         </main>
         <footer className="bg-white border-t py-8 mt-12">
           <div className="max-w-7xl mx-auto px-4 text-center text-gray-700 text-sm font-medium">
-            <p>&copy; {new Date().getFullYear()} PataMaster. Todos los derechos reservados.</p>
+            <p>&copy; {new Date().getFullYear()} Metele Pata. Todos los derechos reservados.</p>
           </div>
         </footer>
       </div>

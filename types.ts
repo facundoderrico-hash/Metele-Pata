@@ -36,6 +36,7 @@ export interface Settings {
   pricePerPerson: number;
   paymentAlias: string;
   paymentCbu?: string;
+  adminPassword?: string;
 }
 
 export interface User {

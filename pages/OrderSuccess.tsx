@@ -6,7 +6,7 @@ const OrderSuccess: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
 
   const shareWithFriends = () => {
-    const text = `¡Acabo de pedir una Pata Flambeada en PataMaster! Mi pedido es el #${orderId}. Pide la tuya acá: ${window.location.origin}`;
+    const text = `¡Acabo de pedir una Pata Flambeada en Metele Pata! Mi pedido es el #${orderId}. Pide la tuya acá: ${window.location.origin}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 

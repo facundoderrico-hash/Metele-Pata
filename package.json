@@ -1,8 +1,7 @@
-
 {
-  "name": "patamaster-pwa",
+  "name": "metele-pata---gestión-de-pedidos-de-patas-flambeadas",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,17 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "react": "^19.2.3",
     "@google/genai": "^1.37.0",
-    "@supabase/supabase-js": "^2.39.7",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-router-dom": "^7.1.0"
+    "@supabase/supabase-js": "2.39.7",
+    "react-dom": "^19.2.3",
+    "react-router-dom": "^7.12.0"
   },
   "devDependencies": {
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.7.0",
-    "vite": "^6.0.0"
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
   }
 }
