@@ -2,19 +2,14 @@
 import { createClient } from '@supabase/supabase-js';
 import { Order, OrderStatus, Sauce, Settings } from '../types';
 
-/**
- * CONFIGURACIÓN DE VÍNCULO:
- * Se han actualizado las credenciales con los valores provistos por el usuario.
- */
-const supabaseUrl = (process.env as any).SUPABASE_URL || 'https://btquwepipecmppbvwxdz.supabase.co';
-const supabaseKey = (process.env as any).SUPABASE_ANON_KEY || 'sb_publishable_IvBCVxD_Yk1atqf9Kjl6wA_wOXph4q9';
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
 
-// Verificamos si las claves son válidas
 export const isCloudConnected = Boolean(
   supabaseUrl && 
-  supabaseUrl !== 'TU_URL_DE_SUPABASE' && 
+  supabaseUrl.startsWith('https://') && 
   supabaseKey && 
-  supabaseKey !== 'TU_ANON_KEY_DE_SUPABASE'
+  supabaseKey.length > 20
 );
 
 const supabase = isCloudConnected 
@@ -43,10 +38,7 @@ const setLocalData = <T>(key: string, data: T): void => {
 
 export const db = {
   getOrders: async (): Promise<Order[]> => {
-    if (!supabase) {
-      console.info("Info: Usando LocalStorage.");
-      return getLocalData<Order[]>('pm_orders', []);
-    }
+    if (!supabase) return getLocalData<Order[]>('pm_orders', []);
     try {
       const { data, error } = await supabase
         .from('orders')
@@ -55,7 +47,6 @@ export const db = {
       
       if (error) throw error;
       
-      // Mapeo de snake_case (DB) a camelCase (App)
       return (data || []).map(o => ({
         id: o.id,
         customerName: o.customer_name,
@@ -71,24 +62,23 @@ export const db = {
         created_at: o.created_at
       }));
     } catch (err) {
-      console.error("Error al obtener pedidos de la nube:", err);
+      console.error(err);
       return getLocalData<Order[]>('pm_orders', []);
     }
   },
   
-  saveOrder: async (order: Omit<Order, 'id' | 'created_at' | 'status'>): Promise<Order> => {
+  saveOrder: async (order: any): Promise<Order> => {
     const id = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
     const status = OrderStatus.PENDING;
     const createdAt = new Date().toISOString();
 
     if (!supabase) {
-      const newOrder = { ...order, id, status, created_at: createdAt } as Order;
-      const orders = getLocalData<Order[]>('pm_orders', []);
+      const newOrder = { ...order, id, status, created_at: createdAt };
+      const orders = getLocalData<any[]>('pm_orders', []);
       setLocalData('pm_orders', [newOrder, ...orders]);
-      return newOrder;
+      return newOrder as Order;
     }
 
-    // Mapeo de camelCase (App) a snake_case (DB) para insertar
     const dbOrder = {
       id,
       customer_name: order.customerName,
@@ -109,15 +99,8 @@ export const db = {
       .select()
       .single();
 
-    if (error) {
-      console.error("Error al guardar en la nube, guardando localmente:", error);
-      const fallbackOrder = { ...order, id, status, created_at: createdAt } as Order;
-      const orders = getLocalData<Order[]>('pm_orders', []);
-      setLocalData('pm_orders', [fallbackOrder, ...orders]);
-      return fallbackOrder;
-    }
+    if (error) throw error;
 
-    // Devolvemos el objeto mapeado de vuelta a camelCase para la App
     return {
       id: data.id,
       customerName: data.customer_name,
@@ -152,20 +135,14 @@ export const db = {
   getSettings: async (): Promise<Settings> => {
     const defaultSettings: Settings = {
       pricePerPerson: 1200,
-      paymentAlias: 'PATA.MASTER.PAGO',
-      paymentCbu: '0000003100012345678901'
+      paymentAlias: 'PATA.MASTER.PAGO'
     };
 
     if (!supabase) return getLocalData<Settings>('pm_settings', defaultSettings);
     
     try {
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .single();
-      
+      const { data, error } = await supabase.from('settings').select('*').single();
       if (error || !data) return defaultSettings;
-
       return {
         pricePerPerson: data.price_per_person,
         paymentAlias: data.payment_alias,
@@ -187,22 +164,14 @@ export const db = {
       payment_alias: settings.paymentAlias,
       payment_cbu: settings.paymentCbu
     };
-    const { error } = await supabase
-      .from('settings')
-      .upsert(dbSettings);
-    
+    const { error } = await supabase.from('settings').upsert(dbSettings);
     if (error) throw error;
   },
 
   getSauces: async (): Promise<Sauce[]> => {
     if (!supabase) return getLocalData<Sauce[]>('pm_sauces', INITIAL_SAUCES);
-    
     try {
-      const { data, error } = await supabase
-        .from('sauces')
-        .select('*')
-        .order('name');
-      
+      const { data, error } = await supabase.from('sauces').select('*').order('name');
       if (error || !data || data.length === 0) return INITIAL_SAUCES;
       return data;
     } catch {
@@ -215,10 +184,7 @@ export const db = {
       setLocalData('pm_sauces', sauces);
       return;
     }
-    const { error } = await supabase
-      .from('sauces')
-      .upsert(sauces);
-    
+    const { error } = await supabase.from('sauces').upsert(sauces);
     if (error) throw error;
   }
 };
