@@ -17,7 +17,6 @@
         #root {
             min-height: 100vh;
         }
-        /* Pantalla de carga inicial mientras React se monta */
         .loading-screen {
             display: flex;
             justify-content: center;
@@ -33,12 +32,14 @@
 <script>
     /**
      * SHIM PARA ENTORNO DE NAVEGADOR:
-     * En producción (Vercel), 'process' no existe de forma nativa.
-     * Definimos un objeto global para evitar errores de referencia.
+     * Definimos las variables necesarias para que Supabase funcione correctamente
+     * y la app no detecte "Modo Local" por error.
      */
     window.process = {
         env: {
-            NODE_ENV: 'production'
+            NODE_ENV: 'production',
+            SUPABASE_URL: 'https://btquwepipecmppbvwxdz.supabase.co',
+            SUPABASE_ANON_KEY: 'sb_publishable_IvBCVxD_Yk1atqf9Kjl6wA_wOXph4q9'
         }
     };
 </script>
@@ -49,6 +50,7 @@
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom": "https://esm.sh/react-dom@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-dom/client": "https://esm.sh/react-dom@^19.2.3/client",
     "@google/genai": "https://esm.sh/@google/genai@^1.37.0",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.7",
     "react-router-dom": "https://esm.sh/react-router-dom@^7.12.0"
@@ -62,7 +64,7 @@
             <p>Iniciando Metele Pata...</p>
         </div>
     </div>
-    <!-- Carga del punto de entrada principal mediante módulos de ES6 -->
+    <!-- Punto de entrada principal -->
     <script type="module" src="index.tsx"></script>
 </body>
 </html>

@@ -2,28 +2,16 @@ import { createClient } from '@supabase/supabase-js';
 import { Order, OrderStatus, Sauce, Settings } from '../types';
 
 /**
- * CONFIGURACIÓN DE VÍNCULO:
- * Se obtienen las llaves de Supabase de forma segura, verificando tanto
- * el objeto global window.process como el objeto process local si existe.
+ * CONFIGURACIÓN DE BASE DE DATOS:
+ * Prioriza las variables inyectadas en el shim del index.html.
  */
-const getEnvVar = (key: string): string => {
-  try {
-    // Intenta obtener de las variables inyectadas por el entorno de ejecución
-    return (window as any).process?.env?.[key] || (process?.env as any)?.[key] || '';
-  } catch {
-    return '';
-  }
-};
+const supabaseUrl = (window as any).process?.env?.SUPABASE_URL || 'https://btquwepipecmppbvwxdz.supabase.co';
+const supabaseKey = (window as any).process?.env?.SUPABASE_ANON_KEY || 'sb_publishable_IvBCVxD_Yk1atqf9Kjl6wA_wOXph4q9';
 
-const supabaseUrl = getEnvVar('SUPABASE_URL') || 'https://btquwepipecmppbvwxdz.supabase.co';
-const supabaseKey = getEnvVar('SUPABASE_ANON_KEY') || 'sb_publishable_IvBCVxD_Yk1atqf9Kjl6wA_wOXph4q9';
-
-// Detección robusta de conexión a la nube
-// Se asegura de que no estemos usando placeholders y que la URL sea válida.
+// Detección de conexión: Es true si tenemos las credenciales mínimas.
 export const isCloudConnected = Boolean(
   supabaseUrl && 
   supabaseUrl.startsWith('https://') && 
-  !supabaseUrl.includes('TU_URL_DE_SUPABASE') &&
   supabaseKey && 
   supabaseKey.length > 20
 );
