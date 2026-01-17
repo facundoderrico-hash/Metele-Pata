@@ -17,7 +17,31 @@
         #root {
             min-height: 100vh;
         }
+        /* Pantalla de carga inicial mientras React se monta */
+        .loading-screen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-weight: bold;
+            color: #c2410c;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-size: 0.875rem;
+        }
     </style>
+<script>
+    /**
+     * SHIM PARA ENTORNO DE NAVEGADOR:
+     * En producción (Vercel), 'process' no existe de forma nativa.
+     * Definimos un objeto global para evitar errores de referencia.
+     */
+    window.process = {
+        env: {
+            NODE_ENV: 'production'
+        }
+    };
+</script>
 <script type="importmap">
 {
   "imports": {
@@ -33,8 +57,12 @@
 </script>
 </head>
 <body>
-    <div id="root"></div>
-    <!-- Carga del punto de entrada principal -->
+    <div id="root">
+        <div class="loading-screen">
+            <p>Iniciando Metele Pata...</p>
+        </div>
+    </div>
+    <!-- Carga del punto de entrada principal mediante módulos de ES6 -->
     <script type="module" src="index.tsx"></script>
 </body>
 </html>
