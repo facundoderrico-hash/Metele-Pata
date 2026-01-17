@@ -18,24 +18,24 @@
             min-height: 100vh;
         }
     </style>
-<script>
-    // Shim para variables de entorno y compatibilidad
-    window.process = {
-        env: {
-            NODE_ENV: 'production',
-            SUPABASE_URL: 'https://btquwepipecmppbvwxdz.supabase.co',
-            SUPABASE_ANON_KEY: 'sb_publishable_IvBCVxD_Yk1atqf9Kjl6wA_wOXph4q9'
-        }
-    };
-</script>
-<script type="importmap">
+    <script>
+        // SHIM GLOBAL: Crucial para que Supabase y React Router no fallen en el navegador
+        window.process = {
+            env: {
+                NODE_ENV: 'production',
+                SUPABASE_URL: 'https://btquwepipecmppbvwxdz.supabase.co',
+                SUPABASE_ANON_KEY: 'sb_publishable_IvBCVxD_Yk1atqf9Kjl6wA_wOXph4q9'
+            }
+        };
+    </script>
+    <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@19.0.0",
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "react-router-dom": "https://esm.sh/react-router-dom@7.1.5?external=react,react-dom",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.40.0?external=react",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.28.0?external=react,react-dom",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.40.0?external=react,react-dom",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/"
   }
@@ -44,7 +44,6 @@
 </head>
 <body>
     <div id="root"></div>
-    <!-- Carga explícita del punto de entrada -->
     <script type="module" src="index.tsx"></script>
 </body>
 </html>

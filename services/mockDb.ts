@@ -3,18 +3,16 @@ import { Order, OrderStatus, Sauce, Settings } from '../types';
 
 /**
  * CONFIGURACIÓN DE BASE DE DATOS:
- * Accedemos a las variables definidas en el shim del index.html.
+ * Obtenemos las credenciales inyectadas globalmente en index.html
  */
-const getEnv = (key: string) => (window as any).process?.env?.[key] || '';
+const SUPABASE_URL = (window as any).process?.env?.SUPABASE_URL;
+const SUPABASE_KEY = (window as any).process?.env?.SUPABASE_ANON_KEY;
 
-const supabaseUrl = getEnv('SUPABASE_URL');
-const supabaseKey = getEnv('SUPABASE_ANON_KEY');
-
-// Detección de conexión: Priorizamos que existan las llaves
-export const isCloudConnected = Boolean(supabaseUrl && supabaseKey);
+// La conexión se considera activa si ambas llaves existen
+export const isCloudConnected = Boolean(SUPABASE_URL && SUPABASE_KEY);
 
 const supabase = isCloudConnected 
-  ? createClient(supabaseUrl, supabaseKey) 
+  ? createClient(SUPABASE_URL, SUPABASE_KEY) 
   : null;
 
 const INITIAL_SAUCES: Sauce[] = [
