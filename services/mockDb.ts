@@ -1,31 +1,25 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { Order, OrderStatus, Sauce, Settings } from '../types';
 
 /**
  * CONFIGURACIÓN DE VÍNCULO:
- * Credenciales de Supabase.
+ * Se obtienen las llaves de Supabase desde las variables de entorno.
  */
-const supabaseUrl = (process.env as any).SUPABASE_URL || '';
-const supabaseKey = (process.env as any).SUPABASE_ANON_KEY || '';
+const supabaseUrl = (process.env as any).SUPABASE_URL || 'https://btquwepipecmppbvwxdz.supabase.co';
+const supabaseKey = (process.env as any).SUPABASE_ANON_KEY || 'sb_publishable_IvBCVxD_Yk1atqf9Kjl6wA_wOXph4q9';
 
-// Validamos que las variables existan y no sean los placeholders por defecto
+// Detección robusta de conexión a la nube
 export const isCloudConnected = Boolean(
   supabaseUrl && 
   supabaseUrl.startsWith('https://') && 
+  supabaseUrl !== 'TU_URL_DE_SUPABASE' &&
   supabaseKey && 
   supabaseKey.length > 20
 );
 
-let supabase: any = null;
-
-if (isCloudConnected) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey);
-  } catch (e) {
-    console.error("Error al inicializar Supabase:", e);
-  }
-}
+const supabase = isCloudConnected 
+  ? createClient(supabaseUrl, supabaseKey) 
+  : null;
 
 const INITIAL_SAUCES: Sauce[] = [
   { id: 'sauce-1', name: 'Chimichurri', active: true },
@@ -92,7 +86,8 @@ export const db = {
         .select('*')
         .eq('id', id)
         .maybeSingle();
-      if (error || !data) return null;
+      if (error) throw error;
+      if (!data) return null;
       return {
         id: data.id,
         customerName: data.customer_name,
