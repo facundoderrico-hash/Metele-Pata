@@ -4,12 +4,11 @@ import { Order, OrderStatus, Sauce, Settings } from '../types';
 
 /**
  * CONFIGURACIÓN DE VÍNCULO:
- * Se han actualizado las credenciales con los valores provistos por el usuario.
+ * Credenciales de Supabase del usuario.
  */
 const supabaseUrl = (process.env as any).SUPABASE_URL || 'https://btquwepipecmppbvwxdz.supabase.co';
 const supabaseKey = (process.env as any).SUPABASE_ANON_KEY || 'sb_publishable_IvBCVxD_Yk1atqf9Kjl6wA_wOXph4q9';
 
-// Verificamos si las claves son válidas
 export const isCloudConnected = Boolean(
   supabaseUrl && 
   supabaseUrl !== 'TU_URL_DE_SUPABASE' && 
@@ -22,19 +21,24 @@ const supabase = isCloudConnected
   : null;
 
 const INITIAL_SAUCES: Sauce[] = [
-  { id: '1', name: 'Chimichurri', active: true },
-  { id: '2', name: 'Mayonesa con Ajo', active: true },
-  { id: '3', name: 'Salsa Criolla', active: true },
-  { id: '4', name: 'Mostaza y Miel', active: true },
-  { id: '5', name: 'Barbacoa', active: true },
-  { id: '6', name: 'Picante Suave', active: true },
-  { id: '7', name: 'Queso Azul', active: true },
-  { id: '8', name: 'Cebollas Caramelizadas', active: true },
+  { id: 'sauce-1', name: 'Chimichurri', active: true },
+  { id: 'sauce-2', name: 'Mayonesa con Ajo', active: true },
+  { id: 'sauce-3', name: 'Salsa Criolla', active: true },
+  { id: 'sauce-4', name: 'Mostaza y Miel', active: true },
+  { id: 'sauce-5', name: 'Barbacoa', active: true },
+  { id: 'sauce-6', name: 'Picante Suave', active: true },
+  { id: 'sauce-7', name: 'Queso Azul', active: true },
+  { id: 'sauce-8', name: 'Cebollas Caramelizadas', active: true },
 ];
 
 const getLocalData = <T>(key: string, fallback: T): T => {
   const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : fallback;
+  if (!data) return fallback;
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    return fallback;
+  }
 };
 
 const setLocalData = <T>(key: string, data: T): void => {
@@ -43,19 +47,13 @@ const setLocalData = <T>(key: string, data: T): void => {
 
 export const db = {
   getOrders: async (): Promise<Order[]> => {
-    if (!supabase) {
-      console.info("Info: Usando LocalStorage.");
-      return getLocalData<Order[]>('pm_orders', []);
-    }
+    if (!supabase) return getLocalData<Order[]>('pm_orders', []);
     try {
       const { data, error } = await supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
-      
       if (error) throw error;
-      
-      // Mapeo de snake_case (DB) a camelCase (App)
       return (data || []).map(o => ({
         id: o.id,
         customerName: o.customer_name,
@@ -71,8 +69,40 @@ export const db = {
         created_at: o.created_at
       }));
     } catch (err) {
-      console.error("Error al obtener pedidos de la nube:", err);
+      console.error("Error al obtener pedidos:", err);
       return getLocalData<Order[]>('pm_orders', []);
+    }
+  },
+
+  getOrderById: async (id: string): Promise<Order | null> => {
+    if (!supabase) {
+      const orders = getLocalData<Order[]>('pm_orders', []);
+      return orders.find(o => o.id === id) || null;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', id)
+        .single();
+      if (error) throw error;
+      return {
+        id: data.id,
+        customerName: data.customer_name,
+        phone: data.phone,
+        address: data.address,
+        peopleCount: data.people_count,
+        totalPrice: data.total_price,
+        orderDate: data.order_date,
+        orderTime: data.order_time,
+        status: data.status as OrderStatus,
+        paymentProofUrl: data.payment_proof_url,
+        sauces: data.sauces,
+        created_at: data.created_at
+      };
+    } catch (err) {
+      console.error("Error al obtener pedido:", err);
+      return null;
     }
   },
   
@@ -88,14 +118,13 @@ export const db = {
       return newOrder;
     }
 
-    // Mapeo de camelCase (App) a snake_case (DB) para insertar
     const dbOrder = {
       id,
       customer_name: order.customerName,
       phone: order.phone,
       address: order.address,
-      people_count: order.peopleCount,
-      total_price: order.totalPrice,
+      people_count: Number(order.peopleCount),
+      total_price: Number(order.totalPrice),
       order_date: order.orderDate,
       order_time: order.orderTime,
       status,
@@ -103,21 +132,8 @@ export const db = {
       sauces: order.sauces
     };
 
-    const { data, error } = await supabase
-      .from('orders')
-      .insert([dbOrder])
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error al guardar en la nube, guardando localmente:", error);
-      const fallbackOrder = { ...order, id, status, created_at: createdAt } as Order;
-      const orders = getLocalData<Order[]>('pm_orders', []);
-      setLocalData('pm_orders', [fallbackOrder, ...orders]);
-      return fallbackOrder;
-    }
-
-    // Devolvemos el objeto mapeado de vuelta a camelCase para la App
+    const { data, error } = await supabase.from('orders').insert([dbOrder]).select().single();
+    if (error) throw error;
     return {
       id: data.id,
       customerName: data.customer_name,
@@ -141,71 +157,70 @@ export const db = {
       setLocalData('pm_orders', updated);
       return;
     }
-    const { error } = await supabase
-      .from('orders')
-      .update({ status })
-      .eq('id', orderId);
-    
+    const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
     if (error) throw error;
   },
 
   getSettings: async (): Promise<Settings> => {
     const defaultSettings: Settings = {
-      pricePerPerson: 1200,
+      pricePerPerson: 12500,
       paymentAlias: 'PATA.MASTER.PAGO',
       paymentCbu: '0000003100012345678901',
       adminPassword: 'admin123'
     };
 
-    if (!supabase) return getLocalData<Settings>('pm_settings', defaultSettings);
+    const localPass = localStorage.getItem('pm_admin_pass') || 'admin123';
+
+    if (!supabase) return { ...getLocalData<Settings>('pm_settings', defaultSettings), adminPassword: localPass };
     
     try {
       const { data, error } = await supabase
         .from('settings')
-        .select('*')
-        .single();
+        .select('price_per_person, payment_alias, payment_cbu')
+        .eq('id', 1)
+        .maybeSingle();
       
-      if (error || !data) return defaultSettings;
+      if (error || !data) return { ...defaultSettings, adminPassword: localPass };
 
       return {
-        pricePerPerson: data.price_per_person,
+        pricePerPerson: Number(data.price_per_person),
         paymentAlias: data.payment_alias,
         paymentCbu: data.payment_cbu,
-        adminPassword: data.admin_password || 'admin123'
+        adminPassword: localPass
       };
     } catch {
-      return defaultSettings;
+      return { ...defaultSettings, adminPassword: localPass };
     }
   },
 
   saveSettings: async (settings: Settings): Promise<void> => {
+    if (settings.adminPassword) {
+      localStorage.setItem('pm_admin_pass', settings.adminPassword);
+    }
+
     if (!supabase) {
       setLocalData('pm_settings', settings);
       return;
     }
+
     const dbSettings = {
       id: 1,
-      price_per_person: settings.pricePerPerson,
+      price_per_person: Number(settings.pricePerPerson),
       payment_alias: settings.paymentAlias,
-      payment_cbu: settings.paymentCbu,
-      admin_password: settings.adminPassword
+      payment_cbu: settings.paymentCbu
     };
+    
     const { error } = await supabase
       .from('settings')
-      .upsert(dbSettings);
+      .upsert(dbSettings, { onConflict: 'id' });
     
     if (error) throw error;
   },
 
   getSauces: async (): Promise<Sauce[]> => {
     if (!supabase) return getLocalData<Sauce[]>('pm_sauces', INITIAL_SAUCES);
-    
     try {
-      const { data, error } = await supabase
-        .from('sauces')
-        .select('*')
-        .order('name');
-      
+      const { data, error } = await supabase.from('sauces').select('*').order('name');
       if (error || !data || data.length === 0) return INITIAL_SAUCES;
       return data;
     } catch {
@@ -218,11 +233,23 @@ export const db = {
       setLocalData('pm_sauces', sauces);
       return;
     }
-    const { error } = await supabase
-      .from('sauces')
-      .upsert(sauces);
     
-    if (error) throw error;
+    // Separamos las nuevas salsas de las existentes
+    const newSauces = sauces
+      .filter(s => s.id.startsWith('temp-'))
+      .map(({ id, ...rest }) => rest);
+      
+    const existingSauces = sauces.filter(s => !s.id.startsWith('temp-'));
+
+    if (newSauces.length > 0) {
+      const { error: insertError } = await supabase.from('sauces').insert(newSauces);
+      if (insertError) throw insertError;
+    }
+
+    if (existingSauces.length > 0) {
+      const { error: upsertError } = await supabase.from('sauces').upsert(existingSauces);
+      if (upsertError) throw upsertError;
+    }
   },
 
   deleteSauce: async (id: string): Promise<void> => {
@@ -232,11 +259,7 @@ export const db = {
       setLocalData('pm_sauces', updated);
       return;
     }
-    const { error } = await supabase
-      .from('sauces')
-      .delete()
-      .eq('id', id);
-    
+    const { error } = await supabase.from('sauces').delete().eq('id', id);
     if (error) throw error;
   }
 };

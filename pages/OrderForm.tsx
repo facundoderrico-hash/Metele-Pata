@@ -3,7 +3,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, isCloudConnected } from '../services/mockDb';
 import { Sauce, Settings, OrderSauce, Order, OrderStatus } from '../types';
-import { getSauceRecommendations } from '../services/geminiService';
 
 const OrderForm: React.FC = () => {
   const navigate = useNavigate();
@@ -24,9 +23,6 @@ const OrderForm: React.FC = () => {
     paymentProof: null as File | null,
     paymentProofPreview: '' as string
   });
-
-  const [aiRecommendation, setAiRecommendation] = useState<string | null>(null);
-  const [loadingAi, setLoadingAi] = useState(false);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -101,17 +97,6 @@ const OrderForm: React.FC = () => {
     }
   };
 
-  const getAiHelp = async () => {
-    if (!isValidPeopleCount) return;
-    setLoadingAi(true);
-    const rec = await getSauceRecommendations(
-      peopleCountNum, 
-      sauces.map(s => s.name)
-    );
-    setAiRecommendation(rec);
-    setLoadingAi(false);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.selectedSauces.length !== 6) {
@@ -144,9 +129,9 @@ const OrderForm: React.FC = () => {
       });
 
       navigate(`/order-success/${newOrder.id}`);
-    } catch (err) {
-      console.error(err);
-      alert("Error al guardar el pedido. Intenta nuevamente.");
+    } catch (err: any) {
+      console.error("Error al guardar pedido:", err);
+      alert("Error al guardar el pedido: " + (err.message || "Verifica tu conexión"));
     } finally {
       setIsSubmitting(false);
     }
@@ -154,7 +139,6 @@ const OrderForm: React.FC = () => {
 
   if (!settings) return <div className="flex justify-center items-center h-64 text-orange-700 font-bold italic">Sincronizando menú...</div>;
 
-  // Clases compartidas para inputs con ALTO CONTRASTE y tamaño PROPORCIONADO
   const inputBaseClasses = "w-full p-3.5 border-2 border-gray-200 rounded-xl outline-none font-bold text-black bg-white focus:border-orange-500 focus:ring-4 focus:ring-orange-50 transition-all placeholder:text-gray-400 placeholder:font-normal text-base";
 
   return (
@@ -165,7 +149,7 @@ const OrderForm: React.FC = () => {
         </div>
       )}
 
-      {/* Steps Header - Más compacto */}
+      {/* Steps Header */}
       <div className="flex justify-between mb-6 px-4">
         {[1, 2, 3].map((s) => (
           <div key={s} className="flex flex-col items-center gap-1.5">
@@ -202,8 +186,11 @@ const OrderForm: React.FC = () => {
                       className={`${inputBaseClasses} text-xl w-24 text-center ${showMinError ? 'border-red-500 bg-red-50' : ''}`}
                     />
                     <div className="flex-grow flex flex-col items-center justify-center bg-gray-900 p-3 rounded-xl border-b-2 border-gray-700">
-                      <p className="text-[8px] font-black text-orange-400 uppercase tracking-widest">Subtotal</p>
+                      <p className="text-[8px] font-black text-orange-400 uppercase tracking-widest">Total</p>
                       <p className="text-xl font-black text-white">${total.toLocaleString()}</p>
+                      {isValidPeopleCount && settings && (
+                        <p className="text-[7px] font-bold text-gray-500 uppercase tracking-widest mt-0.5">(${settings.pricePerPerson.toLocaleString()} x {peopleCountNum})</p>
+                      )}
                     </div>
                   </div>
                   {showMinError && (
@@ -214,23 +201,8 @@ const OrderForm: React.FC = () => {
 
               <div className="space-y-3">
                 <div className="flex justify-between items-center px-1">
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest">Salsas: Elegí 6 ({formData.selectedSauces.length}/6)</label>
-                  <button 
-                    type="button" 
-                    onClick={getAiHelp} 
-                    disabled={loadingAi || !isValidPeopleCount} 
-                    className="text-[8px] text-white font-black bg-orange-700 px-3 py-1.5 rounded-full shadow-md disabled:opacity-30"
-                  >
-                    {loadingAi ? '...' : '✨ SUGERENCIA'}
-                  </button>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest">Salsas ({formData.selectedSauces.length}/6)</label>
                 </div>
-
-                {aiRecommendation && (
-                  <div className="p-4 bg-orange-50 rounded-2xl text-[11px] text-orange-900 border-l-4 border-orange-500 relative font-bold leading-normal shadow-sm">
-                    <button onClick={() => setAiRecommendation(null)} className="absolute top-2 right-3 font-black text-orange-400 text-base">×</button>
-                    {aiRecommendation}
-                  </div>
-                )}
 
                 <div className="grid grid-cols-2 gap-2">
                   {sauces.map((sauce) => (
@@ -302,7 +274,7 @@ const OrderForm: React.FC = () => {
                       <option value="">...</option>
                       {timeOptions.map(time => (
                         <option key={time} value={time} disabled={occupiedTimes.includes(time)}>
-                          {time} {occupiedTimes.includes(time) ? '(X)' : ''}
+                          {time} {occupiedTimes.includes(time) ? '(Ocupado)' : ''}
                         </option>
                       ))}
                     </select>
@@ -314,7 +286,7 @@ const OrderForm: React.FC = () => {
                   <input 
                     required 
                     type="text" 
-                    placeholder="Juan Pérez" 
+                    placeholder="Tu nombre aquí" 
                     value={formData.customerName} 
                     onChange={(e) => setFormData({ ...formData, customerName: e.target.value })} 
                     className={inputBaseClasses} 
@@ -322,11 +294,11 @@ const OrderForm: React.FC = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-500 uppercase ml-1">WhatsApp / Celular</label>
+                  <label className="text-[10px] font-black text-gray-500 uppercase ml-1">WhatsApp</label>
                   <input 
                     required 
                     type="tel" 
-                    placeholder="351 123 4567" 
+                    placeholder="Ej: 351 123456" 
                     value={formData.phone} 
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })} 
                     className={inputBaseClasses} 
@@ -334,11 +306,11 @@ const OrderForm: React.FC = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-gray-500 uppercase ml-1">Dirección Exacta</label>
+                  <label className="text-[10px] font-black text-gray-500 uppercase ml-1">Dirección de Entrega</label>
                   <input 
                     required 
                     type="text" 
-                    placeholder="Calle 123, Barrio Centro" 
+                    placeholder="Barrio, Calle, Altura" 
                     value={formData.address} 
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })} 
                     className={inputBaseClasses} 
@@ -363,14 +335,13 @@ const OrderForm: React.FC = () => {
           {step === 3 && (
             <div className="space-y-6">
               <div className="border-b border-gray-50 pb-4 text-center">
-                <h2 className="text-2xl font-black text-gray-900 tracking-tight italic">Confirmación</h2>
-                <p className="text-gray-400 font-bold uppercase text-[9px] tracking-widest">Paso 3: Pago</p>
+                <h2 className="text-2xl font-black text-gray-900 tracking-tight italic">Confirmación de Pago</h2>
+                <p className="text-gray-400 font-bold uppercase text-[9px] tracking-widest">Paso 3: Transferencia</p>
               </div>
 
               <div className="bg-gray-900 p-6 rounded-2xl border-b-4 border-orange-700 space-y-4 shadow-lg">
                 <div className="flex justify-between items-center">
                   <p className="text-[8px] font-black text-orange-400 uppercase tracking-widest">Alias de Pago:</p>
-                  <p className="text-[7px] text-white/50 uppercase font-bold">Toca para copiar</p>
                 </div>
                 <div 
                   className="bg-white/5 p-4 rounded-xl border border-white/10 cursor-pointer active:bg-white/10 transition-colors text-center"
@@ -380,20 +351,24 @@ const OrderForm: React.FC = () => {
                   }}
                 >
                   <p className="font-mono font-black text-lg text-white tracking-wider">{settings.paymentAlias}</p>
+                  <p className="text-[7px] text-white/30 uppercase mt-1 font-bold">Toca para copiar</p>
                 </div>
                 <div className="flex justify-between items-end pt-2 border-t border-white/5">
                   <p className="font-black text-gray-500 text-[10px] uppercase">A transferir:</p>
-                  <p className="text-2xl font-black text-white leading-none">${total.toLocaleString()}</p>
+                  <div className="text-right">
+                    <p className="text-2xl font-black text-white leading-none">${total.toLocaleString()}</p>
+                    <p className="text-[8px] text-gray-500 font-bold uppercase mt-1 tracking-tighter">Reserva por {peopleCountNum} personas</p>
+                  </div>
                 </div>
               </div>
               
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-500 uppercase ml-1">Sube el comprobante de pago</label>
+                <label className="text-[10px] font-black text-gray-500 uppercase ml-1">Sube el comprobante</label>
                 {!formData.paymentProofPreview ? (
                   <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer bg-gray-50 hover:bg-white transition-all">
                     <div className="flex flex-col items-center justify-center p-4">
                       <svg className="w-8 h-8 mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">ADJUNTAR FOTO</p>
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">TOCA AQUÍ PARA <br/>ADJUNTAR FOTO</p>
                     </div>
                     <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
                   </label>
@@ -418,7 +393,7 @@ const OrderForm: React.FC = () => {
                   disabled={!formData.paymentProof || isSubmitting} 
                   className="flex-[2] bg-green-700 text-white py-4 px-4 rounded-xl font-black text-lg shadow-lg hover:bg-green-800 transition active:scale-95 disabled:opacity-40"
                 >
-                  {isSubmitting ? '...' : 'RESERVAR'}
+                  {isSubmitting ? 'ENVIANDO...' : 'FINALIZAR PEDIDO'}
                 </button>
               </div>
             </div>
@@ -427,7 +402,7 @@ const OrderForm: React.FC = () => {
         </form>
       </div>
       
-      <p className="text-center mt-8 text-[9px] font-black text-gray-300 uppercase tracking-widest">Metele Pata OS v2.6</p>
+      <p className="text-center mt-8 text-[9px] font-black text-gray-300 uppercase tracking-widest italic">Patas Flambeadas OS • v3.0</p>
     </div>
   );
 };

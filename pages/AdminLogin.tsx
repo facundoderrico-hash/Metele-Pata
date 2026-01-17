@@ -38,7 +38,7 @@ const AdminLogin: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
           </svg>
         </div>
-        <h2 className="text-3xl font-black text-center mb-1 italic tracking-tight">Acceso Admin</h2>
+        <h2 className="text-3xl font-black text-center mb-1 italic tracking-tight text-gray-900">Acceso Admin</h2>
         <p className="text-center text-gray-400 text-[10px] font-black uppercase tracking-widest mb-8">Metele Pata OS Control</p>
         
         <form onSubmit={handleLogin} className="space-y-6">
@@ -48,7 +48,7 @@ const AdminLogin: React.FC = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-4 border-2 border-gray-100 rounded-2xl font-black text-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-50 outline-none transition text-center"
+              className="w-full p-4 border-2 border-gray-100 rounded-2xl font-black text-xl bg-white text-gray-900 focus:border-orange-500 focus:ring-4 focus:ring-orange-50 outline-none transition text-center appearance-none"
               placeholder="••••••••"
               required
             />

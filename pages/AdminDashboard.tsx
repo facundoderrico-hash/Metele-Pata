@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { db, isCloudConnected } from '../services/mockDb';
 import { Order, OrderStatus, Sauce, Settings } from '../types';
 
+/**
+ * Componente principal del panel de administración.
+ */
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'orders' | 'settings' | 'sauces' | 'setup' | 'marketing'>('orders');
@@ -11,6 +14,15 @@ const AdminDashboard: React.FC = () => {
   const [sauces, setSauces] = useState<Sauce[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
+  // Estados para Modales de Salsas
+  const [editingSauce, setEditingSauce] = useState<{ id: string, name: string } | null>(null);
+  const [deletingSauce, setDeletingSauce] = useState<{ id: string, name: string } | null>(null);
+  const [isAddingSauce, setIsAddingSauce] = useState(false);
+  const [newSauceName, setNewSauceName] = useState('');
+  const [isCreatingSauce, setIsCreatingSauce] = useState(false);
 
   // Estados de Filtros
   const [filterName, setFilterName] = useState('');
@@ -19,8 +31,8 @@ const AdminDashboard: React.FC = () => {
 
   const currentUrl = window.location.origin + window.location.pathname;
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [fetchedOrders, fetchedSauces, fetchedSettings] = await Promise.all([
         db.getOrders(),
@@ -30,10 +42,10 @@ const AdminDashboard: React.FC = () => {
       setOrders(fetchedOrders);
       setSauces(fetchedSauces);
       setSettings(fetchedSettings);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error("Error al cargar datos:", err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -45,7 +57,6 @@ const AdminDashboard: React.FC = () => {
     loadData();
   }, [navigate]);
 
-  // Lógica de Filtrado
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
       const matchesName = order.customerName.toLowerCase().includes(filterName.toLowerCase());
@@ -56,46 +67,91 @@ const AdminDashboard: React.FC = () => {
   }, [orders, filterName, filterStatus, filterDate]);
 
   const handleUpdateStatus = async (id: string, status: OrderStatus) => {
-    await db.updateOrderStatus(id, status);
-    loadData();
+    try {
+      await db.updateOrderStatus(id, status);
+      await loadData(true);
+    } catch (err) {
+      alert("Error al actualizar el estado");
+    }
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (settings) {
+    if (!settings) return;
+
+    setIsSaving(true);
+    setFeedback(null);
+
+    try {
       await db.saveSettings(settings);
-      alert('Configuración guardada correctamente');
+      setFeedback({ type: 'success', message: '¡Configuración guardada!' });
+      setTimeout(() => setFeedback(null), 3000);
+      await loadData(true); 
+    } catch (err: any) {
+      const errorMsg = err.message || (typeof err === 'string' ? err : 'Error de conexión');
+      setFeedback({ type: 'error', message: errorMsg });
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const toggleSauce = async (id: string) => {
     const updated = sauces.map(s => s.id === id ? { ...s, active: !s.active } : s);
     setSauces(updated);
-    await db.saveSauces(updated);
-  };
-
-  const addSauce = async () => {
-    const name = prompt('Nombre de la nueva salsa:');
-    if (name && name.trim()) {
-      const updated = [...sauces, { id: Date.now().toString(), name: name.trim(), active: true }];
-      setSauces(updated);
+    try {
       await db.saveSauces(updated);
+    } catch (err: any) {
+      alert("Error: " + (err.message || "No se pudo actualizar la salsa"));
+      loadData(true);
     }
   };
 
-  const editSauce = async (id: string, currentName: string) => {
-    const newName = prompt('Editar nombre de la salsa:', currentName);
-    if (newName && newName.trim() && newName !== currentName) {
-      const updated = sauces.map(s => s.id === id ? { ...s, name: newName.trim() } : s);
-      setSauces(updated);
+  const handleAddSauce = async () => {
+    if (!newSauceName.trim()) return;
+    
+    setIsCreatingSauce(true);
+    try {
+      const newSauce: Sauce = { 
+        id: `temp-${Date.now()}`, 
+        name: newSauceName.trim(), 
+        active: true 
+      };
+      
+      const updated = [...sauces, newSauce];
       await db.saveSauces(updated);
+      
+      setNewSauceName('');
+      setIsAddingSauce(false);
+      await loadData(true); 
+    } catch (err: any) {
+      alert("Error al crear la salsa: " + (err.message || "Verifica la conexión"));
+    } finally {
+      setIsCreatingSauce(false);
     }
   };
 
-  const deleteSauce = async (id: string, name: string) => {
-    if (confirm(`¿Estás seguro de que quieres eliminar definitivamente la salsa "${name}"?`)) {
-      await db.deleteSauce(id);
-      setSauces(sauces.filter(s => s.id !== id));
+  const handleUpdateSauceName = async () => {
+    if (editingSauce && editingSauce.name.trim()) {
+      const updated = sauces.map(s => s.id === editingSauce.id ? { ...s, name: editingSauce.name.trim() } : s);
+      try {
+        await db.saveSauces(updated);
+        setEditingSauce(null);
+        await loadData(true);
+      } catch (err: any) {
+        alert("Error al actualizar: " + (err.message || "No se pudo guardar"));
+      }
+    }
+  };
+
+  const confirmDeleteSauce = async () => {
+    if (deletingSauce) {
+      try {
+        await db.deleteSauce(deletingSauce.id);
+        setDeletingSauce(null);
+        await loadData(true);
+      } catch (err: any) {
+        alert("Error al eliminar: " + (err.message || "Intenta de nuevo"));
+      }
     }
   };
 
@@ -118,449 +174,358 @@ const AdminDashboard: React.FC = () => {
   if (loading) return (
     <div className="flex flex-col justify-center items-center h-screen gap-4">
       <div className="w-12 h-12 border-4 border-orange-700 border-t-transparent rounded-full animate-spin"></div>
-      <p className="font-black text-orange-700 uppercase tracking-widest text-sm">Sincronizando...</p>
+      <p className="font-black text-orange-700 uppercase tracking-widest text-sm">Sincronizando Sistema...</p>
     </div>
   );
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 text-gray-900">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-black mb-1 italic">Panel de Control</h1>
-          <div className="flex items-center gap-2">
-            {isCloudConnected ? (
-              <span className="bg-green-100 text-green-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-green-200 uppercase flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Modo Nube Activo
-              </span>
-            ) : (
-              <span className="bg-orange-100 text-orange-800 text-[10px] font-black px-2 py-0.5 rounded-full border border-orange-200 uppercase flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span> Modo Local (No compartido)
-              </span>
-            )}
+      {/* MODAL EDITAR SALSA */}
+      {editingSauce && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl animate-in zoom-in duration-300">
+            <h3 className="text-xl font-black italic mb-6 text-gray-900">Editar Sauce</h3>
+            <div className="space-y-4">
+              <input 
+                type="text" 
+                value={editingSauce.name}
+                onChange={(e) => setEditingSauce({ ...editingSauce, name: e.target.value })}
+                className="w-full p-4 border-2 border-gray-100 rounded-2xl font-bold text-lg bg-white text-gray-900 focus:border-orange-500 outline-none transition"
+              />
+              <div className="flex gap-3">
+                <button onClick={() => setEditingSauce(null)} className="flex-1 bg-gray-100 py-3 rounded-xl font-black text-xs uppercase text-gray-500">Cancelar</button>
+                <button onClick={handleUpdateSauceName} className="flex-1 bg-orange-700 text-white py-3 rounded-xl font-black text-xs uppercase shadow-lg shadow-orange-100">Guardar</button>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="flex bg-gray-200 rounded-xl p-1 border-2 border-gray-300 w-full md:w-auto overflow-x-auto shadow-inner">
-          {[
-            { id: 'orders', label: 'PEDIDOS' },
-            { id: 'sauces', label: 'SALSAS' },
-            { id: 'settings', label: 'AJUSTES' },
-            { id: 'marketing', label: 'COMPARTIR' },
-            { id: 'setup', label: 'CONEXIÓN' }
-          ].map((tab) => (
-            <button 
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`whitespace-nowrap px-4 py-2 rounded-lg text-xs font-black transition ${activeTab === tab.id ? 'bg-orange-700 text-white shadow-md scale-105' : 'text-gray-700 hover:bg-gray-300'}`}
-            >
-              {tab.label}
-            </button>
-          ))}
+      )}
+
+      {/* MODAL ELIMINAR SALSA */}
+      {deletingSauce && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl border-b-8 border-red-600 animate-in zoom-in duration-300">
+            <h3 className="text-xl font-black italic mb-2 text-gray-900">¿Eliminar Salsa?</h3>
+            <p className="text-sm text-gray-500 mb-6 font-bold">{deletingSauce.name}</p>
+            <div className="flex flex-col gap-2">
+              <button onClick={confirmDeleteSauce} className="w-full bg-red-600 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest">Sí, eliminar</button>
+              <button onClick={() => setDeletingSauce(null)} className="w-full bg-gray-100 text-gray-400 py-4 rounded-xl font-black text-xs uppercase">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL AGREGAR SALSA */}
+      {isAddingSauce && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl animate-in zoom-in duration-300">
+            <h3 className="text-xl font-black italic mb-6 text-gray-900">Nueva Salsa</h3>
+            <div className="space-y-4">
+              <input 
+                type="text" 
+                placeholder="Nombre de la salsa"
+                value={newSauceName}
+                onChange={(e) => setNewSauceName(e.target.value)}
+                autoFocus
+                className="w-full p-4 border-2 border-gray-100 rounded-2xl font-bold text-lg bg-white text-gray-900 focus:border-orange-500 outline-none transition"
+              />
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setIsAddingSauce(false)} 
+                  disabled={isCreatingSauce}
+                  className="flex-1 bg-gray-100 py-3 rounded-xl font-black text-xs uppercase text-gray-500 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleAddSauce} 
+                  disabled={isCreatingSauce || !newSauceName.trim()}
+                  className="flex-1 bg-orange-700 text-white py-3 rounded-xl font-black text-xs uppercase shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isCreatingSauce ? 'Guardando...' : 'Crear'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+        <div>
+          <h1 className="text-4xl font-black italic tracking-tight text-orange-800">Metele Pata OS</h1>
+          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mt-1">Panel de Control del Negocio</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => { localStorage.removeItem('is_admin'); navigate('/admin'); }} className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-black text-xs uppercase hover:bg-gray-200 transition">Salir</button>
         </div>
       </div>
 
-      {activeTab === 'orders' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-4">
-            <div className="flex items-center gap-2 mb-2">
-              <svg className="w-4 h-4 text-orange-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-              <h2 className="text-xs font-black uppercase tracking-widest text-gray-400">Filtrar Pedidos</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="relative">
+      {/* TABS NAVEGACIÓN */}
+      <div className="flex overflow-x-auto gap-2 mb-8 no-scrollbar pb-2">
+        {[
+          { id: 'orders', label: 'Pedidos', icon: '📋' },
+          { id: 'sauces', label: 'Salsas', icon: '🍯' },
+          { id: 'settings', label: 'Ajustes', icon: '⚙️' },
+          { id: 'marketing', label: 'Marketing', icon: '📣' },
+          { id: 'setup', label: 'Config', icon: '☁️' }
+        ].map(tab => (
+          <button 
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`px-6 py-3 rounded-2xl font-black text-xs uppercase whitespace-nowrap transition-all flex items-center gap-2 border-2 ${activeTab === tab.id ? 'bg-orange-700 text-white border-orange-700 shadow-lg shadow-orange-100' : 'bg-white text-gray-400 border-gray-50 hover:border-gray-200'}`}
+          >
+            <span className="text-lg">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-50 overflow-hidden min-h-[400px]">
+        {activeTab === 'orders' && (
+          <div className="p-8">
+            <div className="flex flex-wrap items-center gap-4 mb-8">
+              <div className="flex-1 min-w-[200px] relative">
                 <input 
                   type="text" 
-                  placeholder="Buscar por cliente..." 
+                  placeholder="Filtrar por nombre..." 
                   value={filterName}
                   onChange={(e) => setFilterName(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-xs font-bold outline-none focus:border-orange-500 focus:bg-white transition"
+                  className="w-full p-3 border-2 border-gray-100 rounded-xl font-bold text-sm bg-white text-gray-900 outline-none focus:border-orange-500 appearance-none transition-all"
                 />
-                <svg className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
               </div>
               
-              <select 
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-xs font-bold outline-none focus:border-orange-500 focus:bg-white transition appearance-none"
-              >
-                <option value="all">Todos los estados</option>
-                <option value={OrderStatus.PENDING}>Pendientes</option>
-                <option value={OrderStatus.CONFIRMED}>Confirmados</option>
-                <option value={OrderStatus.DELIVERED}>Entregados</option>
-                <option value={OrderStatus.CANCELLED}>Cancelados</option>
-              </select>
-
-              <input 
-                type="date" 
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-xs font-bold outline-none focus:border-orange-500 focus:bg-white transition"
-              />
-
-              <button 
-                onClick={clearFilters}
-                className="px-4 py-3 bg-gray-900 text-white rounded-xl text-[10px] font-black uppercase hover:bg-black transition active:scale-95"
-              >
-                Limpiar Filtros
-              </button>
-            </div>
-          </div>
-
-          <div className="flex justify-between items-center px-2">
-             <button onClick={loadData} className="text-[10px] font-black text-orange-700 bg-orange-50 px-3 py-1 rounded-full border border-orange-200 hover:bg-orange-100 transition uppercase tracking-widest flex items-center gap-2">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-              Actualizar
-            </button>
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-              Mostrando {filteredOrders.length} de {orders.length} pedidos
-            </span>
-          </div>
-
-          {filteredOrders.length === 0 ? (
-            <div className="bg-white p-20 text-center rounded-3xl border-4 border-dashed border-gray-100 font-black text-gray-300 text-xl italic">
-              {orders.length === 0 ? 'Aún no hay pedidos registrados.' : 'No se encontraron pedidos con esos filtros.'}
-            </div>
-          ) : (
-            filteredOrders.map(order => (
-              <div key={order.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col md:flex-row gap-6 hover:shadow-md transition">
-                <div className="flex-grow space-y-4">
-                  <div className="flex items-center gap-3">
-                    <span className="font-black text-2xl tracking-tighter">#{order.id}</span>
-                    <span className={`px-4 py-1 rounded-full text-[10px] font-black uppercase border-2 ${
-                      order.status === OrderStatus.PENDING ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                      order.status === OrderStatus.CONFIRMED ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                      order.status === OrderStatus.DELIVERED ? 'bg-green-50 text-green-700 border-green-200' :
-                      'bg-red-50 text-red-700 border-red-200'
-                    }`}>{order.status}</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-[10px] font-black text-gray-400 uppercase">Cliente</p>
-                      <p className="font-bold text-gray-900">{order.customerName}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-gray-400 uppercase">Total</p>
-                      <p className="font-bold text-orange-700">${order.totalPrice.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-gray-400 uppercase">Fecha y Hora</p>
-                      <p className="font-bold text-gray-900">{order.orderDate} — {order.orderTime}hs</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-gray-400 uppercase">Dirección</p>
-                      <p className="font-bold text-gray-900">{order.address}</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-3 min-w-[220px] justify-center">
-                  <a href={order.paymentProofUrl} target="_blank" className="flex items-center justify-center gap-2 text-sm font-black text-orange-800 border-2 border-orange-200 p-3 rounded-xl bg-orange-50 hover:bg-orange-100 transition">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Ver Comprobante
-                  </a>
-                  <select 
-                    value={order.status} 
-                    onChange={(e) => handleUpdateStatus(order.id, e.target.value as OrderStatus)}
-                    className="p-3 border-2 border-gray-200 rounded-xl text-xs font-black bg-white focus:border-orange-500 outline-none"
-                  >
-                    <option value={OrderStatus.PENDING}>Pendiente</option>
-                    <option value={OrderStatus.CONFIRMED}>Confirmado</option>
-                    <option value={OrderStatus.DELIVERED}>Entregado</option>
-                    <option value={OrderStatus.CANCELLED}>Cancelado</option>
-                  </select>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {activeTab === 'marketing' && (
-        <div className="bg-white rounded-3xl p-8 border border-gray-200 space-y-8">
-           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-3xl">📢</div>
-            <div>
-              <h2 className="text-2xl font-black italic">Herramientas de Venta</h2>
-              <p className="text-gray-500 text-sm font-medium">Comparte tu link con los clientes para empezar a recibir pedidos.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 space-y-4">
-                <p className="text-sm font-black text-gray-900 uppercase tracking-widest">Link de tu tienda</p>
-                <div className="bg-white p-4 rounded-2xl border-2 border-gray-200 break-all font-mono text-xs text-orange-700 font-bold">
-                  {currentUrl}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => copyToClipboard(currentUrl)} className="flex-1 bg-gray-900 text-white py-3 rounded-xl font-black text-xs hover:bg-gray-800 transition uppercase">Copiar Link</button>
-                  <button onClick={shareWhatsApp} className="flex-1 bg-green-600 text-white py-3 rounded-xl font-black text-xs hover:bg-green-700 transition uppercase flex items-center justify-center gap-2">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.414 0 0 5.414 0 12.05c0 2.123.554 4.197 1.608 6.022L0 24l6.117-1.605a11.803 11.803 0 005.925 1.577h.005c6.631 0 12.046-5.414 12.046-12.05 0-3.212-1.252-6.231-3.528-8.507z"/></svg>
-                    Enviar
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6 bg-blue-50 rounded-3xl border border-blue-100">
-                <p className="font-black text-blue-900 text-sm mb-2 uppercase italic">Tip de Ventas 💡</p>
-                <p className="text-xs text-blue-800 font-medium leading-relaxed">
-                  Pega este link en tu **biografía de Instagram** y ponlo en tu **estado de WhatsApp** cada jueves o viernes. 
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center justify-center p-8 border-4 border-dashed border-gray-100 rounded-3xl bg-white text-center space-y-4">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Tu Código QR</p>
-              <div className="bg-white p-4 rounded-3xl shadow-2xl border-2 border-orange-100">
-                <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(currentUrl)}`} 
-                  alt="Código QR del negocio" 
-                  className="w-48 h-48"
+              <div className="flex-shrink-0">
+                <input 
+                  type="date" 
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  className="p-3 border-2 border-gray-100 rounded-xl font-bold text-sm bg-white text-gray-900 outline-none focus:border-orange-500 transition-all cursor-pointer"
                 />
               </div>
-              <p className="text-xs text-gray-500 font-bold max-w-[200px]">Imprime este QR y pégalo en tu local.</p>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {activeTab === 'setup' && (
-        <div className="bg-white rounded-3xl p-8 border border-gray-200 space-y-12 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg shadow-blue-200">🚀</div>
-              <div>
-                <h2 className="text-2xl font-black italic">Configuración de Vercel</h2>
-                <p className="text-gray-500 text-sm font-medium">Sigue estos 3 pasos para poner tu negocio en órbita.</p>
-              </div>
-            </div>
-            <div className="bg-orange-50 px-4 py-2 rounded-xl border border-orange-200">
-               <p className="text-[10px] font-black text-orange-700 uppercase">Estado Actual:</p>
-               <p className="text-xs font-bold text-orange-900 flex items-center gap-2">
-                 <span className={`w-2 h-2 rounded-full ${isCloudConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></span>
-                 {isCloudConnected ? 'Producción Lista' : 'Configuración Pendiente'}
-               </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-gray-50 p-6 rounded-3xl border-2 border-gray-100 space-y-4">
-              <span className="bg-gray-900 text-white w-8 h-8 rounded-full flex items-center justify-center font-black">1</span>
-              <h3 className="font-black italic">GitHub</h3>
-              <p className="text-xs text-gray-600 font-medium leading-relaxed">Sube tu carpeta a un repositorio. Es gratis y sirve de respaldo.</p>
-            </div>
-
-            <div className="bg-gray-50 p-6 rounded-3xl border-2 border-gray-100 space-y-4">
-              <span className="bg-gray-900 text-white w-8 h-8 rounded-full flex items-center justify-center font-black">2</span>
-              <h3 className="font-black italic">Importar</h3>
-              <p className="text-xs text-gray-600 font-medium leading-relaxed">En Vercel, elige el repositorio y dale a "Deploy".</p>
-            </div>
-
-            <div className="bg-blue-600 p-6 rounded-3xl border-2 border-blue-500 space-y-4 text-white shadow-xl shadow-blue-200">
-              <span className="bg-white text-blue-600 w-8 h-8 rounded-full flex items-center justify-center font-black">3</span>
-              <h3 className="font-black italic">Variables</h3>
-              <p className="text-xs font-medium opacity-90 leading-relaxed">Copia estos nombres y busca sus valores abajo.</p>
-              <div className="space-y-2">
-                {[
-                  { name: 'API_KEY', label: 'IA Gemini' },
-                  { name: 'SUPABASE_URL', label: 'Base de Datos' },
-                  { name: 'SUPABASE_ANON_KEY', label: 'Clave DB' }
-                ].map((v) => (
-                  <button 
-                    key={v.name}
-                    onClick={() => copyToClipboard(v.name)}
-                    className="w-full flex justify-between items-center bg-blue-700/50 hover:bg-blue-800 p-2 rounded-lg border border-blue-400/30 transition text-[10px] font-black group"
-                  >
-                    <span>{v.name}</span>
-                    <span className="bg-blue-400/20 px-2 py-0.5 rounded text-[8px] group-hover:bg-white group-hover:text-blue-600">COPIAR</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gray-50 p-8 rounded-3xl border border-gray-200 space-y-6">
-            <h3 className="text-xl font-black italic flex items-center gap-2">
-              <span className="bg-orange-100 p-2 rounded-lg text-lg">❓</span> ¿Dónde encuentro mis valores?
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-gray-200 space-y-4 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm">G</div>
-                  <h4 className="font-black text-sm uppercase text-gray-400 tracking-tighter">Para API_KEY (IA Gemini)</h4>
-                </div>
-                <p className="text-[11px] font-bold text-gray-600 leading-relaxed">
-                  Entra a <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-600 underline">Google AI Studio</a>. Haz clic en el botón <b>"Create API Key"</b>. Copia ese código largo (empieza con "AIza...").
-                </p>
-              </div>
-
-              <div className="bg-white p-6 rounded-2xl border border-gray-200 space-y-4 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-green-100 text-green-600 rounded-lg flex items-center justify-center text-sm">S</div>
-                  <h4 className="font-black text-sm uppercase text-gray-400 tracking-tighter">Para SUPABASE (DB)</h4>
-                </div>
-                <p className="text-[11px] font-bold text-gray-600 leading-relaxed">
-                  En tu proyecto de Supabase, ve a: <br/>
-                  <b>Settings (Icono Rueda) → API</b>. <br/>
-                  Ahí verás <b>Project URL</b> (para el URL) y <b>anon public</b> (para el Anon Key).
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-8 rounded-3xl border-2 border-dashed border-gray-200">
-            <h3 className="text-xl font-black mb-6 italic flex items-center gap-2">
-              <span className="text-green-500">🛡️</span> Scripts de Seguridad (SQL)
-            </h3>
-            <p className="text-xs text-gray-500 font-bold mb-4 uppercase tracking-widest">Copia y pega esto en el SQL Editor de Supabase para crear tus tablas:</p>
-            <div className="bg-gray-900 p-6 rounded-2xl text-green-400 font-mono text-[10px] overflow-x-auto shadow-inner relative group">
-                <button 
-                  onClick={() => copyToClipboard(`create table orders (
-  id text primary key,
-  customer_name text,
-  phone text,
-  address text,
-  people_count int,
-  total_price float,
-  order_date date,
-  order_time text,
-  status text,
-  payment_proof_url text,
-  sauces jsonb,
-  created_at timestamp with time zone default now()
-);
-
-create table sauces (
-  id uuid default gen_random_uuid() primary key,
-  name text,
-  active boolean default true
-);
-
-create table settings (
-  id int primary key default 1,
-  price_per_person int,
-  payment_alias text,
-  payment_cbu text,
-  admin_password text
-);`)} 
-                  className="absolute top-4 right-4 bg-white/10 text-white/50 hover:text-white px-3 py-1 rounded-lg text-[9px] font-black transition opacity-0 group-hover:opacity-100"
+              <div className="flex-shrink-0">
+                <select 
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="p-3 border-2 border-gray-100 rounded-xl font-bold text-sm bg-white text-gray-900 outline-none focus:border-orange-500"
                 >
-                  COPIAR TODO EL SQL
+                  <option value="all">Todos los estados</option>
+                  {Object.values(OrderStatus).map(s => (
+                    <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                  ))}
+                </select>
+              </div>
+
+              {(filterName || filterDate || filterStatus !== 'all') && (
+                <button 
+                  onClick={clearFilters}
+                  className="p-3 text-orange-700 font-black text-xs uppercase hover:underline"
+                >
+                  Limpiar ×
                 </button>
-{`-- 1. Tabla de Pedidos
-create table orders (
-  id text primary key,
-  customer_name text,
-  phone text,
-  address text,
-  people_count int,
-  total_price float,
-  order_date date,
-  order_time text,
-  status text,
-  payment_proof_url text,
-  sauces jsonb,
-  created_at timestamp with time zone default now()
-);
+              )}
+            </div>
 
--- 2. Tabla de Salsas
-create table sauces (
-  id uuid default gen_random_uuid() primary key,
-  name text,
-  active boolean default true
-);
-
--- 3. Tabla de Ajustes
-create table settings (
-  id int primary key default 1,
-  price_per_person int,
-  payment_alias text,
-  payment_cbu text,
-  admin_password text
-);`}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="pb-4 font-black text-[10px] text-gray-400 uppercase tracking-widest">Cliente</th>
+                    <th className="pb-4 font-black text-[10px] text-gray-400 uppercase tracking-widest">Entrega</th>
+                    <th className="pb-4 font-black text-[10px] text-gray-400 uppercase tracking-widest">Total</th>
+                    <th className="pb-4 font-black text-[10px] text-gray-400 uppercase tracking-widest">Estado</th>
+                    <th className="pb-4 font-black text-[10px] text-gray-400 uppercase tracking-widest text-center">Pago</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredOrders.length > 0 ? filteredOrders.map(order => (
+                    <tr key={order.id} className="group hover:bg-gray-50/50 transition-colors">
+                      <td className="py-6">
+                        <p className="font-black text-lg text-gray-900 leading-tight">{order.customerName}</p>
+                        <p className="text-xs font-bold text-gray-400">{order.phone}</p>
+                      </td>
+                      <td className="py-6">
+                        <p className="font-black text-gray-900">{order.orderDate}</p>
+                        <p className="text-xs font-bold text-orange-600">{order.orderTime} hs</p>
+                      </td>
+                      <td className="py-6">
+                        <p className="font-black text-sm text-gray-900">${order.totalPrice.toLocaleString()}</p>
+                        <p className="text-[9px] font-bold text-gray-400">{order.peopleCount} comensales</p>
+                      </td>
+                      <td className="py-6">
+                        <select 
+                          value={order.status}
+                          onChange={(e) => handleUpdateStatus(order.id, e.target.value as OrderStatus)}
+                          className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-full border-2 outline-none transition bg-white text-gray-900 ${
+                            order.status === OrderStatus.CONFIRMED ? 'bg-green-50 text-green-700 border-green-100' :
+                            order.status === OrderStatus.CANCELLED ? 'bg-red-50 text-red-700 border-red-100' :
+                            'bg-orange-50 text-orange-700 border-orange-100'
+                          }`}
+                        >
+                          {Object.values(OrderStatus).map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-6 text-center">
+                        <a href={order.paymentProofUrl} target="_blank" rel="noreferrer" className="p-3 bg-gray-50 text-gray-400 hover:text-orange-700 hover:bg-orange-50 rounded-xl transition-all inline-block">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        </a>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={5} className="py-20 text-center">
+                        <p className="text-gray-300 font-black uppercase text-xs tracking-widest italic">No se encontraron pedidos para este filtro</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === 'sauces' && (
-        <div className="bg-white rounded-3xl p-8 border border-gray-200 shadow-sm">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-black italic">Gestión de Salsas</h2>
-            <button onClick={addSauce} className="bg-orange-700 text-white px-8 py-3 rounded-2xl font-black text-sm shadow-lg hover:bg-orange-800 transition">+ Nueva Salsa</button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sauces.map((sauce) => (
-              <div key={sauce.id} className="flex items-center justify-between p-5 border border-gray-100 rounded-2xl bg-gray-50/50 hover:bg-white transition group border-2 hover:border-orange-200">
-                <div className="flex flex-col gap-2 overflow-hidden">
-                  <span className={`font-black text-lg truncate ${sauce.active ? 'text-gray-900' : 'text-gray-300 line-through'}`}>{sauce.name}</span>
-                  <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+        {activeTab === 'sauces' && (
+          <div className="p-8">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-xl font-black italic text-gray-900">Catálogo de Salsas</h3>
+              <button 
+                onClick={() => setIsAddingSauce(true)}
+                className="bg-orange-700 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase hover:bg-orange-800 transition shadow-lg shadow-orange-100"
+              >
+                + Nueva Salsa
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sauces.map(sauce => (
+                <div key={sauce.id} className="p-4 border-2 border-gray-50 rounded-2xl flex items-center justify-between group hover:border-orange-100 transition-all bg-white">
+                  <div className="flex items-center gap-3">
                     <button 
-                      onClick={() => editSauce(sauce.id, sauce.name)}
-                      className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1 hover:underline"
+                      onClick={() => toggleSauce(sauce.id)}
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${sauce.active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                      Editar
+                      {sauce.active ? '✓' : '×'}
                     </button>
-                    <button 
-                      onClick={() => deleteSauce(sauce.id, sauce.name)}
-                      className="text-[10px] font-black text-red-600 uppercase flex items-center gap-1 hover:underline"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                      Eliminar
-                    </button>
+                    <div>
+                      <p className={`font-black ${sauce.active ? 'text-gray-900' : 'text-gray-400 line-through'}`}>{sauce.name}</p>
+                      <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">{sauce.active ? 'Activa' : 'Pausada'}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => setEditingSauce({ id: sauce.id, name: sauce.name })} className="p-2 text-gray-400 hover:text-orange-700"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button>
+                    <button onClick={() => setDeletingSauce({ id: sauce.id, name: sauce.name })} className="p-2 text-gray-400 hover:text-red-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                   </div>
                 </div>
-                <button onClick={() => toggleSauce(sauce.id)} className={`flex-shrink-0 px-4 py-2 rounded-xl text-[10px] font-black uppercase transition ${sauce.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {sauce.active ? 'Activa' : 'Baja'}
-                </button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {activeTab === 'settings' && settings && (
-        <div className="max-w-2xl bg-white rounded-3xl p-10 border border-gray-200 shadow-sm space-y-10">
-          <div>
-            <h2 className="text-2xl font-black mb-8 italic">Valores del Negocio</h2>
-            <form onSubmit={handleSaveSettings} className="space-y-8">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Precio por Persona ($)</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-400">$</span>
-                  <input type="number" value={settings.pricePerPerson} onChange={(e) => setSettings({ ...settings, pricePerPerson: parseInt(e.target.value) || 0 })} className="w-full pl-8 pr-4 py-4 border-2 border-gray-100 rounded-2xl font-black text-2xl focus:border-orange-500 outline-none transition" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Alias de Pago (Transferencia)</label>
-                <input type="text" value={settings.paymentAlias} onChange={(e) => setSettings({ ...settings, paymentAlias: e.target.value })} className="w-full p-4 border-2 border-gray-100 rounded-2xl font-bold bg-gray-50 focus:bg-white focus:border-orange-500 outline-none transition uppercase" />
-              </div>
-
-              <div className="pt-8 border-t border-gray-100">
-                <div className="flex items-center gap-2 mb-4">
-                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                  <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 italic">Seguridad del Panel</h3>
+        {activeTab === 'settings' && (
+          <div className="p-8 max-w-2xl">
+            <h3 className="text-xl font-black italic mb-8 text-gray-900">Ajustes Generales</h3>
+            {settings && (
+              <form onSubmit={handleSaveSettings} className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Precio por Persona</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-400">$</span>
+                      <input 
+                        type="text" 
+                        inputMode="numeric"
+                        value={settings.pricePerPerson === 0 ? '' : settings.pricePerPerson}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9]/g, ''); 
+                          setSettings({ ...settings, pricePerPerson: val === '' ? 0 : Number(val) });
+                        }}
+                        className="w-full pl-8 pr-4 py-3 border-2 border-gray-100 rounded-xl font-black text-lg bg-white text-gray-900 focus:border-orange-500 outline-none transition appearance-none"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Clave Admin (Local)</label>
+                    <input 
+                      type="text" 
+                      value={settings.adminPassword}
+                      onChange={(e) => setSettings({ ...settings, adminPassword: e.target.value })}
+                      className="w-full p-3 border-2 border-gray-100 rounded-xl font-black text-lg bg-white text-gray-900 focus:border-orange-500 outline-none transition appearance-none"
+                      required
+                    />
+                    <p className="text-[9px] text-gray-400 italic font-bold">Clave guardada localmente.</p>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nueva Clave Admin</label>
+                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Alias MP / Transferencia</label>
                   <input 
-                    type="password" 
-                    placeholder="Dejar igual o cambiar..."
-                    value={settings.adminPassword} 
-                    onChange={(e) => setSettings({ ...settings, adminPassword: e.target.value })} 
-                    className="w-full p-4 border-2 border-gray-100 rounded-2xl font-bold bg-gray-50 focus:bg-white focus:border-orange-500 outline-none transition" 
+                    type="text" 
+                    value={settings.paymentAlias}
+                    onChange={(e) => setSettings({ ...settings, paymentAlias: e.target.value })}
+                    className="w-full p-4 border-2 border-orange-100 bg-white text-orange-800 rounded-xl font-black text-xl outline-none appearance-none"
+                    required
                   />
-                  <p className="text-[9px] text-gray-400 font-bold uppercase pl-1 tracking-tighter">Esta es la clave para entrar a este panel. El valor inicial es admin123.</p>
+                </div>
+                
+                <div className="pt-4 relative">
+                  {feedback && (
+                    <div className={`absolute -top-8 left-0 right-0 text-center font-black text-[11px] uppercase tracking-widest animate-in fade-in slide-in-from-bottom-2 duration-300 ${feedback.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                      {feedback.message}
+                    </div>
+                  )}
+                  <button 
+                    type="submit" 
+                    disabled={isSaving}
+                    className={`w-full py-4 rounded-2xl font-black text-sm uppercase shadow-xl transition active:scale-95 flex items-center justify-center gap-3 ${
+                      isSaving ? 'bg-gray-400 text-white' : 
+                      feedback?.type === 'success' ? 'bg-green-600 text-white' : 'bg-orange-700 text-white hover:bg-orange-800'
+                    }`}
+                  >
+                    {isSaving ? 'Guardando...' : feedback?.type === 'success' ? '¡Hecho!' : 'Guardar Cambios'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'marketing' && (
+          <div className="p-8">
+            <h3 className="text-xl font-black italic mb-6 text-gray-900">Difusión</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-6 bg-green-50 rounded-3xl border-2 border-green-100">
+                <h4 className="text-lg font-black text-green-900 mb-2">WhatsApp Directo</h4>
+                <button onClick={shareWhatsApp} className="w-full bg-green-600 text-white py-3 rounded-xl font-black text-xs uppercase shadow-lg shadow-green-100">Compartir</button>
+              </div>
+              <div className="p-6 bg-orange-50 rounded-3xl border-2 border-orange-100">
+                <h4 className="text-lg font-black text-orange-900 mb-2">URL del Sistema</h4>
+                <div className="flex gap-2">
+                  <input readOnly value={currentUrl} className="flex-1 bg-white border border-orange-200 rounded-lg px-3 py-2 text-[10px] font-mono text-gray-500" />
+                  <button onClick={() => copyToClipboard(currentUrl)} className="bg-orange-700 text-white px-4 rounded-lg font-black text-[10px] uppercase">Copiar</button>
                 </div>
               </div>
-
-              <button type="submit" className="w-full bg-gray-900 text-white py-5 rounded-2xl font-black text-xl shadow-2xl hover:scale-[1.02] active:scale-95 transition transform">
-                Guardar Cambios
-              </button>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {activeTab === 'setup' && (
+          <div className="p-8 text-gray-900">
+            <h3 className="text-xl font-black italic mb-6">Estado Técnico</h3>
+            <div className={`p-6 rounded-3xl border-2 ${isCloudConnected ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
+              <div className="flex items-center gap-4">
+                <div className={`w-4 h-4 rounded-full animate-pulse ${isCloudConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <h4 className={`font-black uppercase text-xs ${isCloudConnected ? 'text-green-800' : 'text-red-800'}`}>
+                  {isCloudConnected ? 'Conectado a la Nube' : 'Modo Offline'}
+                </h4>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <p className="text-center mt-12 text-[10px] font-black text-gray-300 uppercase tracking-widest italic">Metele Pata OS • v3.0.4</p>
     </div>
   );
 };
