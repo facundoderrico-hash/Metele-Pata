@@ -4,28 +4,21 @@ import { Order, OrderStatus, Sauce, Settings } from '../types';
 
 /**
  * CONFIGURACIÓN DE VÍNCULO:
- * Credenciales de Supabase.
+ * Credenciales de Supabase del usuario.
  */
-const supabaseUrl = (process.env as any).SUPABASE_URL || '';
-const supabaseKey = (process.env as any).SUPABASE_ANON_KEY || '';
+const supabaseUrl = (process.env as any).SUPABASE_URL || 'https://btquwepipecmppbvwxdz.supabase.co';
+const supabaseKey = (process.env as any).SUPABASE_ANON_KEY || 'sb_publishable_IvBCVxD_Yk1atqf9Kjl6wA_wOXph4q9';
 
-// Validamos que las variables existan y no sean los placeholders por defecto
 export const isCloudConnected = Boolean(
   supabaseUrl && 
-  supabaseUrl.startsWith('https://') && 
+  supabaseUrl !== 'TU_URL_DE_SUPABASE' && 
   supabaseKey && 
-  supabaseKey.length > 20
+  supabaseKey !== 'TU_ANON_KEY_DE_SUPABASE'
 );
 
-let supabase: any = null;
-
-if (isCloudConnected) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey);
-  } catch (e) {
-    console.error("Error al inicializar Supabase:", e);
-  }
-}
+const supabase = isCloudConnected 
+  ? createClient(supabaseUrl, supabaseKey) 
+  : null;
 
 const INITIAL_SAUCES: Sauce[] = [
   { id: 'sauce-1', name: 'Chimichurri', active: true },
@@ -91,8 +84,8 @@ export const db = {
         .from('orders')
         .select('*')
         .eq('id', id)
-        .maybeSingle();
-      if (error || !data) return null;
+        .single();
+      if (error) throw error;
       return {
         id: data.id,
         customerName: data.customer_name,
@@ -172,7 +165,7 @@ export const db = {
     const defaultSettings: Settings = {
       pricePerPerson: 12500,
       paymentAlias: 'PATA.MASTER.PAGO',
-      paymentCbu: '',
+      paymentCbu: '0000003100012345678901',
       adminPassword: 'admin123'
     };
 
@@ -241,6 +234,7 @@ export const db = {
       return;
     }
     
+    // Separamos las nuevas salsas de las existentes
     const newSauces = sauces
       .filter(s => s.id.startsWith('temp-'))
       .map(({ id, ...rest }) => rest);
